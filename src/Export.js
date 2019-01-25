@@ -1,72 +1,83 @@
-import http from 'http';
-import https from 'https';
-import fs from 'fs';
-import request from 'request';
+const http = require('http');
+const https = require('https');
+const fs = require('fs');
 
-export default class Export {
+class Exporter {
+
     constructor(params) {
         this.params = params;
     }
 
-    static create(params) {
-        let newExport = new Export(params);
-        return newExport;
-    }
-
-    async export(format, pageOtions) {
+    export(format, pageOtions) {
         var boundary = '------------------------fe017aa0c2cf6d12';
-        let fileToExportContent = fs.readFileSync(this.params.file);
+        let upfile = this.params.file;
+        fs.readFile(upfile, (err, fileContent) => {
+            if(err){
+                console.error(err);
+            }
+            let data = "";
+            var metadata = {
+                token: "### access token ###",
+                channels: "sample",
+                filename: "samplefilename",
+                title: "sampletitle",
+            };
+            for(var i in metadata) {
+                if ({}.hasOwnProperty.call(metadata, i)) {
+                    data += "--" + boundary + "\r\n";
+                    data += "Content-Disposition: form-data; name=\"" + i + "\"; \r\n\r\n" + metadata[i] + "\r\n";
+                }
+            };
+            data += "--" + boundary + "\r\n";
+            data += "Content-Disposition: form-data; name=\"fileToExport\"; filename=\"" + upfile + "\"\r\n";
+            data += "Content-Type:text/html\r\n\r\n";
+            var body = Buffer.concat([
+                    Buffer.from(data, "utf8"),
+                    new Buffer(fileContent, 'binary'),
+                    Buffer.from("\r\n--" + boundary + "--\r\n", "utf8"),
+            ]);
 
-        var body = 
-'--' + boundary + '\r\n' +
-'Content-Disposition: form-data; name="fileToExport"; filename="applications.html"\r\n' +
-'Content-Type: text/html\r\n' +
-'\r\n' +
-fileToExportContent + '\r\n' +
-'--' + boundary + '--\r\n'; 
-                // console.log(body); 
-                // console.log(Buffer.byteLength(body)); 
-        let options = {
-            host: "localhost",
-            port: "1982",
-            path: "/api/export",
-            method: "POST",
-            headers: { 
-                Authorization: "Bearer " + this.params.authentication.secretToken,
-                'content-length': Buffer.byteLength(body),
-                'content-type': 'multipart/form-data;boundary=' + boundary
-            },
-            encoding: null
-        }; 
-        let response = '';
-        return new Promise((resolve, reject) => {
-            let req = http.request(options, function(res) {
-                res.setEncoding('binary');
-                console.log('STATUS: ' + res.statusCode);
-                console.log('HEADERS: ' + JSON.stringify(res.headers));
-                // res.setEncoding('utf8');
-                res.on('data', function (chunk) {
-                    console.log('body data');
-                    response += chunk;
-                });
-                res.on("end", function(){ 
-                    console.log('request end');
-                    fs.writeFile('export.pdf', response, 'binary', function(err) {
-                        if(err) {
-                            return console.log(err);
-                        }
-                        console.log("export file was saved!");
+            let options = {
+                host: "localhost",
+                port: "1982",
+                path: "/api/export",
+                method: "POST",
+                headers: { 
+                    Authorization: "Bearer " + this.params.authentication.secretToken,
+                    'content-length': Buffer.byteLength(body),
+                    'content-type': 'multipart/form-data;boundary=' + boundary
+                },
+            }; 
+            let response = '';
+            return new Promise((resolve, reject) => {
+                let req = http.request(options, function(res) {
+                    res.setEncoding('binary');
+                    console.log('STATUS: ' + res.statusCode);
+                    console.log('HEADERS: ' + JSON.stringify(res.headers));
+                    // res.setEncoding('utf8');
+                    res.on('data', function (chunk) {
+                        console.log('body data');
+                        response += chunk;
                     });
-                    resolve(this);
+                    res.on("end", function(){ 
+                        console.log('request end');
+                        fs.writeFile('./exports/export.pdf', response, 'binary', function(err) {
+                            if(err) {
+                                return console.log(err);
+                            }
+                            console.log("export file was saved!");
+                        });
+                        resolve(this); 
+                    });
                 });
+                req.write(body);
+                req.on('error', function(e) {
+                    console.log('problem with request: ' + e.message);
+                    reject(e);
+                });
+                
+                req.end();
             });
-            req.write(body);
-            req.on('error', function(e) {
-                console.log('problem with request: ' + e.message);
-                reject(e);
-            });
-            
-            req.end();
         });
 
         // const formData = {
@@ -128,14 +139,14 @@ fileToExportContent + '\r\n' +
         // });
     } 
 
-    async pdf(pdfOptions) {
-        let body = await this.export('pdf', pdfOptions);
+    pdf(pdfOptions) {
+        let body = this.export('pdf', pdfOptions);
         console.log("await export finished");
         
         return this;
     } 
 
-    async download(exportFile) {
+    download(exportFile) {
         fs.writeFile(exportFile, this.response, function(err) {
             if(err) {
                 return console.log(err);
@@ -144,3 +155,9 @@ fileToExportContent + '\r\n' +
         });
     }
 } 
+
+
+module.exports = {
+    Exporter: Exporter
+}
+
