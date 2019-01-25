@@ -4,6 +4,7 @@ build
 dist
 uploads
 exports
+temp
 .env
 
 # Other files and folders

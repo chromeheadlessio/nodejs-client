@@ -1,6 +1,7 @@
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
+const urlUtil = require('url');
 
 class Exporter {
 
@@ -8,151 +9,214 @@ class Exporter {
         this.params = params;
     }
 
-    export(format, pageOtions) {
-        var boundary = '------------------------fe017aa0c2cf6d12';
-        let upfile = this.params.file;
-        fs.readFile(upfile, (err, fileContent) => {
-            if(err){
-                console.error(err);
-            }
-            let data = "";
-            var metadata = {
-                token: "### access token ###",
-                channels: "sample",
-                filename: "samplefilename",
-                title: "sampletitle",
-            };
-            for(var i in metadata) {
-                if ({}.hasOwnProperty.call(metadata, i)) {
-                    data += "--" + boundary + "\r\n";
-                    data += "Content-Disposition: form-data; name=\"" + i + "\"; \r\n\r\n" + metadata[i] + "\r\n";
-                }
-            };
-            data += "--" + boundary + "\r\n";
-            data += "Content-Disposition: form-data; name=\"fileToExport\"; filename=\"" + upfile + "\"\r\n";
-            data += "Content-Type:text/html\r\n\r\n";
-            var body = Buffer.concat([
-                    Buffer.from(data, "utf8"),
-                    new Buffer(fileContent, 'binary'),
-                    Buffer.from("\r\n--" + boundary + "--\r\n", "utf8"),
-            ]);
-
-            let options = {
-                host: "localhost",
-                port: "1982",
-                path: "/api/export",
-                method: "POST",
-                headers: { 
-                    Authorization: "Bearer " + this.params.authentication.secretToken,
-                    'content-length': Buffer.byteLength(body),
-                    'content-type': 'multipart/form-data;boundary=' + boundary
-                },
-            }; 
-            let response = '';
-            return new Promise((resolve, reject) => {
-                let req = http.request(options, function(res) {
-                    res.setEncoding('binary');
-                    console.log('STATUS: ' + res.statusCode);
-                    console.log('HEADERS: ' + JSON.stringify(res.headers));
-                    // res.setEncoding('utf8');
-                    res.on('data', function (chunk) {
-                        console.log('body data');
-                        response += chunk;
-                    });
-                    res.on("end", function(){ 
-                        console.log('request end');
-                        fs.writeFile('./exports/export.pdf', response, 'binary', function(err) {
-                            if(err) {
-                                return console.log(err);
-                            }
-                            console.log("export file was saved!");
-                        });
-                        resolve(this); 
-                    });
-                });
-                req.write(body);
-                req.on('error', function(e) {
-                    console.log('problem with request: ' + e.message);
-                    reject(e);
-                });
-                
-                req.end();
+    readFileAsync(filePath) {
+        return new Promise((resolve, reject) => {
+            fs.readFile(filePath, (err, fileContent) => {
+                if (err) {
+                    reject(err);
+                } 
+                resolve(fileContent);
             });
         });
+    }
 
-        // const formData = {
-        //     // Pass a simple key-value pair
-        //     exportFormat: format,
-        //     // Pass data via Buffers
-        //     // my_buffer: Buffer.from([1, 2, 3]),
-        //     // Pass data via Streams
-        //     fileToExport: fs.createReadStream(this.params.file),
-        //     // Pass multiple values /w an Array
-        //     // attachments: [
-        //     //     fs.readFileSync(this.params.file)
-        //     //     fs.createReadStream(__dirname + '/attachment2.jpg')
-        //     // ],
-        //     // Pass optional meta-data with an 'options' object with style: {value: DATA, options: OPTIONS}
-        //     // Use case: for some types of streams, you'll need to provide "file"-related information manually.
-        //     // See the `form-data` README for more information about options: https://github.com/form-data/form-data
-        //     // fileToUpload: {
-        //     //     value:  fs.createReadStream(this.params.file),
-        //     //     options: {
-        //     //         contentType: 'text/html'
-        //     //     }
-        //     // }
-        // };
-        // return new Promise((resolve, reject) => {
-        //     request.post(
-        //         {
-        //             url:'http://localhost:1982/api/export', 
-        //             //encoding to be used on setEncoding of response data. 
-        //             // If null, the body is returned as a Buffer. 
-        //             // Anything else (including the default value of undefined)
-        //             // will be passed as the encoding parameter to toString() 
-        //             // (meaning this is effectively utf8 by default). 
-        //             // (Note: if you expect binary data, you should set encoding: null.)
-        //             encoding: null, 
-        //             headers: { 
-        //                 "Authorization": "Bearer " + this.params.authentication.secretToken,
-        //                 "Content-Type": "multipart/form-data",
-        //             },
-        //             formData: formData
-        //         }, 
-        //         function optionalCallback(err, httpResponse, body) {
-        //             if (err) {
-        //                 console.error('upload failed:', err);
-        //                 reject(err);
-        //             }
-        //             // console.error('response =', httpResponse);
-        //             // this.response = body;
-        //             fs.writeFile('export.pdf', body, 'binary', function(err) {
-        //                 if (err) {
-        //                     console.log('error while writing file :', err);
-        //                 } else {
-        //                     console.log('file saved successfully!');
-        //                 }
-        //             }); 
-        //             resolve(body); 
-        //         }
-        //     );
-        // });
-    } 
+    writeFileAsync(filePath, content) {
+        return new Promise((resolve, reject) => {
+            fs.writeFile(filePath, content, err => {
+                if (err) {
+                    reject(err);
+                }
+                resolve();
+            });
+        });
+    }
+
+    sendRequest(options, body) {
+        return new Promise((resolve, reject) => {
+            let response = "";
+            let req = http.request(options, res => {
+                res.setEncoding('binary');
+                // res.setEncoding('utf8');
+                console.log('STATUS: ' + res.statusCode);
+                console.log('HEADERS: ' + JSON.stringify(res.headers));
+                res.on('data', chunk =>  {
+                    console.log('body data');
+                    response += chunk;
+                });
+                res.on("end", () => { 
+                    console.log('request end');
+                    // this.response = response;
+                    resolve(response);
+                });
+            });
+            req.on('error', err => {
+                console.log('problem with request: ' + err.message);
+                reject(err);
+            });
+            
+            req.write(body);
+            req.end();
+        });
+    }
+
+    prepareRequestData(fileContent) {
+        let params = this.params;
+        let upfile = params.file, pageOptions = params.pageOptions;
+        let boundary = '------------------------fe017aa0c2cf6d12';
+        let data = "";
+        var metadata = {
+            title: "sampletitle",
+        };
+        for(var i in metadata) {
+            if ({}.hasOwnProperty.call(metadata, i)) {
+                data += "--" + boundary + "\r\n";
+                data += "Content-Disposition: form-data; name=\"" + i + "\"; \r\n\r\n" + metadata[i] + "\r\n";
+            }
+        };
+        data += "--" + boundary + "\r\n";
+        data += "Content-Disposition: form-data; name=\"fileToExport\"; filename=\"" 
+            + upfile + "\"\r\n";
+        data += "Content-Type:application/zip\r\n\r\n";
+        var body = Buffer.concat([
+            Buffer.from(data, "utf8"),
+            Buffer.from(fileContent, 'binary'),
+            Buffer.from("\r\n--" + boundary + "--\r\n", "utf8"),
+        ]);
+
+        let options = { 
+            host: "localhost",
+            port: "1982",
+            path: "/api/export",
+            method: "POST",
+            headers: { 
+                Authorization: "Bearer " + params.authentication.secretToken,
+                'content-length': Buffer.byteLength(body),
+                'content-type': 'multipart/form-data;boundary=' + boundary
+            },
+        };
+
+        return new Promise((resolve, reject) => resolve([options, body]));
+    }
+
+    getUrlContent(url) {
+        return new Promise((resolve, reject) => {
+            let client = url.startsWith('https') ? https : http;
+            let req = client.get(url, res => {
+                let data = '';
+    
+                // A chunk of data has been recieved.
+                res.on('data', (chunk) => {
+                    data += chunk;
+                });
+    
+                // The whole response has been received. Print out the result.
+                res.on('end', () => {
+                    resolve(data);
+                });
+    
+            })
+            req.on("error", (err) => {
+                reject(err);
+            });
+        });
+    };
+
+    getFilenameFromUrl(url) {
+        return url.split('/').pop().split('#')[0].split('?')[0];
+    }
+
+    saveTempContent(html) {
+        return new Promise((resolve, reject) => {
+            html = html.replace(/<(link)([^>]+)href=["\']([^>]*)["\']/ig, 
+                function(match, m1, m2, m3, offset, inputString) {
+                    let url = m3;
+                    if (url[0] === '/') {
+                        url = this.httpHost + url;
+                    }
+                    if (url.substr(0, 4) !== 'http') {
+                        url = this.baseUrl + '/' + url;
+                    }
+                    let filename = this.getFilenameFromUrl(url);
+                    this.getUrlContent(url)
+                        .then(data => {
+                            this.writeFileAsync('./temp/' + filename, data);
+                        });
+                    return `${m1}${m2}href="${filename}"`;
+                }
+            );
+        });
+    }
+
+    getHtmlFromParams() {
+        return new Promise((resolve, reject) => {
+            let params = this.params;
+            params.pageOptions = pdfOptions;
+
+            let html = '', url = '';
+            if (params.html) {
+                html = params.html;
+                this.httpHost = 'https://127.0.0.1';
+                this.baseUrl = 'https://127.0.0.1';
+                resolve(html);
+            } else if (params.url) {
+                let url = params.url;
+                if (! url.startsWith('http')) {
+                    url = 'http://' + url;
+                }
+                let urlParse = urlUtil.parse(url);
+                this.httpHost = urlParse.protocol + '//' + urlParse.hostname;
+                this.baseUrl = this.httpHost + '/' + urlParse.path;
+                this.getUrlContent(url)
+                    .then(data => {
+                        html = data;
+                        resolve(html);
+                    })
+                    .catch(err => {
+                        console.log('get url error :', err);
+                        reject(err);
+                    })
+                ;
+            }
+            
+        });
+    }
 
     pdf(pdfOptions) {
-        let body = this.export('pdf', pdfOptions);
-        console.log("await export finished");
-        
-        return this;
+        return new Promise((resolve, reject) => {
+            let params = this.params;
+            params.pageOptions = pdfOptions;
+            let upfile = params.file;
+
+            this.getHtmlFromParams()
+                .then(html => this.saveTempContent(html))
+                .then((zipFile) => this.readFileAsync(zipFile)
+                .then(fileContent => this.prepareRequestData(fileContent))
+                .then(([options, body]) => this.sendRequest(options, body))
+                .then(response => {
+                    this.response = response;
+                    resolve(response);
+                })
+                .catch(err => {
+                    console.log('pdf call catch error :', err);
+                    reject(err);
+                })
+            ;
+        });
     } 
 
-    download(exportFile) {
-        fs.writeFile(exportFile, this.response, function(err) {
-            if(err) {
-                return console.log(err);
-            }
-            console.log("export file was saved!");
-        });
+    save(exportFile) {
+        return new Promise((resolve, reject) => {
+            fs.writeFile(exportFile, this.response, 'binary', 
+                err => {
+                    if (err) {
+                        // console.log(err);
+                        reject(err);
+                    }
+                    console.log("export file was saved!");
+                    resolve();
+                }
+            );
+        })
     }
 } 
 
