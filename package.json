@@ -8,7 +8,7 @@
         "test": "nodemon src/test.js"
     },
     "dependencies": {
+        "adm-zip": "^0.4.13"
     },
-    "devDependencies": {
-    }
+    "devDependencies": {}
 }
