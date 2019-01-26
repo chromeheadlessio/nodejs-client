@@ -46,7 +46,8 @@ class Exporter {
     sendRequest(options, body) {
         return new Promise((resolve, reject) => {
             let response = "";
-            let req = http.request(options, res => {
+            // let req = http.request(options, res => {
+            let req = https.request(options, res => {
                 res.setEncoding('binary');
                 // res.setEncoding('utf8');
                 console.log('STATUS: ' + res.statusCode);
@@ -99,8 +100,10 @@ class Exporter {
             ]);
     
             let options = { 
-                host: "localhost",
-                port: "1982",
+                // host: "localhost",
+                // port: "1982",
+                host: "service.chromeheadless.io",
+                // port: "1982",
                 path: "/api/export",
                 method: "POST",
                 headers: { 
@@ -113,19 +116,22 @@ class Exporter {
         }); 
     }
 
-    getUrlContent(url) {
+    getUrlContent(url, showLastChunk) {
         return new Promise((resolve, reject) => {
             let client = url.startsWith('https') ? https : http;
             let req = client.get(url, res => {
                 let data = '';
-    
+                let lastChunk = '';
                 // A chunk of data has been recieved.
                 res.on('data', (chunk) => {
                     data += chunk;
+                    lastChunk = chunk;
                 });
     
                 // The whole response has been received. Print out the result.
                 res.on('end', () => {
+                    if (showLastChunk)
+                        console.log('last chunk =', lastChunk.toString('utf8'));
                     resolve(data);
                 });
     
@@ -155,8 +161,7 @@ class Exporter {
     saveTempContent() {
         let zip = this.zip = new AdmZip();
         let html = this.html;
-        console.log('this.html =', html);
-        zip.addFile("export.html", Buffer.alloc(html.length, html));
+        // console.log('this.html =', html);
         let resourcePatterns = [
             {
                 regex: /<(link)([^>]+)href=["']([^>"']*)["']/ig,
@@ -168,14 +173,16 @@ class Exporter {
                 replace: "<{group1}{group2}src='{group3}'",
                 urlGroup: "{group3}"
             },
+            {
+                regex: /(KoolReport.load.resources|KoolReport.widget.init)\(([^\)]*)["']([^"',\[\]\:]+)["']/ig,
+                replace: "{group1}({group2}'{group3}'",
+                urlGroup: "{group3}"
+            }
         ];
+        let fileList = {};
         return new Promise((resolve, reject) => {
             let getContentPromises = [];
-
-            // let p = this.writeFileAsync(this.tempDirPath + 'export.html', html);
-            // getContentPromises.push(p);
-            for (let i=0; i<resourcePatterns.length; i+=1) {
-                let rp = resourcePatterns[i];
+            let replaceUrls = (html, rp) => {
                 let numGroup = 1;
                 while (rp.replace.indexOf(`{group${numGroup}}`) > -1) {
                     numGroup += 1;
@@ -184,37 +191,70 @@ class Exporter {
                 while (rp.urlGroup.indexOf(`{group${urlOrder}}`) === -1) {
                     urlOrder += 1;
                 }
-                html = html.replace(rp.regex, 
-                    (...args) => {
-                        let url = args[urlOrder];
-                        if (url[0] === '/') {
-                            url = this.httpHost + url;
+                let flag = true;
+                while (flag) {
+                    flag = false;
+                    html = html.replace(rp.regex, 
+                        (...args) => {
+                            let match = args[0];
+                            // console.log('regex match =', match);
+                            let url = args[urlOrder];
+                            let urlOffset = match.indexOf(url);
+                            let subMatch = match.substr(0, urlOffset);
+                            // console.log('subMatch =', subMatch);
+                            let repSubMatch = replaceUrls(subMatch, rp);
+                            // console.log('repSubMatch =', repSubMatch);
+                            if (repSubMatch !== subMatch) {
+                                // console.log('repSubMatch !== subMatch');
+                                flag = true;
+                                return repSubMatch + match.substr(urlOffset);
+                            }
+                            // console.log('found url =', url);
+                            url = url.replace(/\\/g, "");
+                            if (url[0] === '/') {
+                                url = this.httpHost + url;
+                            }
+                            if (url.substr(0, 4) !== 'http') {
+                                url = this.baseUrl + '/' + url;
+                            }
+                            let filename = this.getFilenameFromUrl(url);
+                            if (! fileList[filename]) {
+                                console.log('retrieve url =', url);
+                                fileList[filename] = true;
+                                // console.log('filename =', filename);
+                                let showLastChunk = false;
+                                // showLastChunk = filename === 'raphael.min.js' ? true : false;
+                                let p = this.getUrlContent(url, showLastChunk);
+                                p.then(data => {
+                                    zip.addFile(filename, Buffer.from(data, 'binary'));
+                                })
+                                .catch(err => {
+                                    console.log('error retrieving ', filename, err);
+                                });
+                                getContentPromises.push(p);
+                            }
+                            let replaceStr = rp.replace;
+                            for (let j=1; j<numGroup; j+=1) {
+                                let groupStr = j === urlOrder ? filename : args[j];
+                                replaceStr = replaceStr.replace(`{group${j}}`, groupStr);
+                            }
+                            // console.log('replaceStr =', replaceStr);
+                            return replaceStr;
                         }
-                        if (url.substr(0, 4) !== 'http') {
-                            url = this.baseUrl + '/' + url;
-                        }
-                        console.log('found url =', url);
-                        let filename = this.getFilenameFromUrl(url);
-                        let p = this.getUrlContent(url);
-                        p.then(data => {
-                            console.log('add ' + filename + ' to zip');
-                            zip.addFile(filename, Buffer.alloc(data.length, data));
-                        });
-                        getContentPromises.push(p);
-                        let replaceStr = rp.replace;
-                        for (let i=1; i<numGroup; i+=1) {
-                            let groupStr = i === urlOrder ? filename : args[i];
-                            replaceStr = replaceStr.replace(`{group${i}}`, groupStr);
-                        }
-                        return replaceStr;
-                    }
-                );
+                    );
+                }
+                return html;
+            };
+            for (let i=0; i<resourcePatterns.length; i+=1) {
+                let rp = resourcePatterns[i];
+                html = replaceUrls(html, rp);
             }
             Promise.all(getContentPromises)
                 .then(res => {
                     console.log('getContentPromises resolved');
+                    zip.addFile("export.html", Buffer.alloc(html.length, html));
                     let zipFilePath = this.tempDir + "/" + this.uuid + ".zip";
-                    // this.zip.writeZip(zipFilePath);
+                    zip.writeZip(zipFilePath);
                     resolve(zipFilePath);
                 })
                 .catch(err => reject(err))
@@ -239,7 +279,10 @@ class Exporter {
                 }
                 let urlParse = urlUtil.parse(url);
                 this.httpHost = urlParse.protocol + '//' + urlParse.hostname;
-                this.baseUrl = this.httpHost + '/' + urlParse.path;
+                let baseUrl = this.httpHost + '/' + urlParse.path;
+                while (baseUrl.substr(-1) === '/') baseUrl = baseUrl.slice(0, -1);
+                this.baseUrl = baseUrl;
+                console.log('this.baseUrl =', this.baseUrl);
                 this.getUrlContent(url)
                     .then(data => {
                         this.html = data;

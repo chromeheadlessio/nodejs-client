@@ -1,7 +1,13 @@
 const chromeExport = require('./Export');
 const fs = require('fs');
 
+// let regex  = /<(link)([^>]+)href=["']([^>"']*)["']/ig;
+// let s = '<link rel="stylesheet" type="text/css" href="';
+// console.log(s.replace(regex, 'match')); return;
+
 let upfile = 'c:/xampp7.2.7/htdocs/applications.html'; 
+let url = 'http://localhost/applications.html';
+url = 'http://localhost/koolreport/examplesLab/reports/cube/sales_by_quarters/';
 let exportFile = './exports/export.pdf';
 let params = {
     authentication: {
@@ -10,8 +16,15 @@ let params = {
     pageWaiting: 'load',
     httpHost: null,
     baseUrl: null,
-    html: fs.readFileSync(upfile, 'utf8'),
-    // url: 'http://localhost/applications.html',
+    // html: fs.readFileSync(upfile, 'utf8'),
+    url: url,
+    resourcePatterns: [
+        {
+            regex: /(KoolReport.load.resources|KoolReport.widget.init)([^"']*)["']([^"']+)["']/ig,
+            replace: "<{group1}{group2}'{group3}'",
+            urlGroup: "{group3}"
+        }
+    ]
 };
 let pdfOptions = {
     format: 'A4' 
