@@ -121,17 +121,14 @@ class Exporter {
             let client = url.startsWith('https') ? https : http;
             let req = client.get(url, res => {
                 let data = '';
-                let lastChunk = '';
+
                 // A chunk of data has been recieved.
                 res.on('data', (chunk) => {
                     data += chunk;
-                    lastChunk = chunk;
                 });
     
                 // The whole response has been received. Print out the result.
                 res.on('end', () => {
-                    if (showLastChunk)
-                        console.log('last chunk =', lastChunk.toString('utf8'));
                     resolve(data);
                 });
     
@@ -172,13 +169,11 @@ class Exporter {
                 regex: /<(script|img|iframe)([^>]+)src=["']([^>"']*)["']/ig,
                 replace: "<{group1}{group2}src='{group3}'",
                 urlGroup: "{group3}"
-            },
-            {
-                regex: /(KoolReport.load.resources|KoolReport.widget.init)\(([^\)]*)["']([^"',\[\]\:]+)["']/ig,
-                replace: "{group1}({group2}'{group3}'",
-                urlGroup: "{group3}"
             }
         ];
+        if (this.params.resourcePatterns) {
+            resourcePatterns = resourcePatterns.concat(this.params.resourcePatterns);
+        }
         let fileList = {};
         return new Promise((resolve, reject) => {
             let getContentPromises = [];
@@ -222,9 +217,7 @@ class Exporter {
                                 console.log('retrieve url =', url);
                                 fileList[filename] = true;
                                 // console.log('filename =', filename);
-                                let showLastChunk = false;
-                                // showLastChunk = filename === 'raphael.min.js' ? true : false;
-                                let p = this.getUrlContent(url, showLastChunk);
+                                let p = this.getUrlContent(url);
                                 p.then(data => {
                                     zip.addFile(filename, Buffer.from(data, 'binary'));
                                 })

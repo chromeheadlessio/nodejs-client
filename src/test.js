@@ -20,8 +20,8 @@ let params = {
     url: url,
     resourcePatterns: [
         {
-            regex: /(KoolReport.load.resources|KoolReport.widget.init)([^"']*)["']([^"']+)["']/ig,
-            replace: "<{group1}{group2}'{group3}'",
+            regex: /(KoolReport.load.resources|KoolReport.widget.init)\(([^\)]*)["']([^"',\[\]\:]+)["']/ig,
+            replace: "{group1}({group2}'{group3}'",
             urlGroup: "{group3}"
         }
     ]
