@@ -1,4 +1,4 @@
-const chromeExport = require('./Export');
+const Exporter = require('./Exporter');
 const fs = require('fs');
 
 // let regex  = /<(link)([^>]+)href=["']([^>"']*)["']/ig;
@@ -30,7 +30,7 @@ let pdfOptions = {
     format: 'A4' 
 };
 
-const exporter = new chromeExport.Exporter(params);
+const exporter = new Exporter(params);
 exporter.pdf(pdfOptions)
     .then(() => exporter.save(exportFile))
     .then(() => console.log('save export file to ', exportFile))

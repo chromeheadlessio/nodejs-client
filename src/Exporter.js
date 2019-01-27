@@ -1,8 +1,8 @@
 const http = require('http');
 const https = require('https');
-const fs = require('fs');
 const urlUtil = require('url');
 const uuidGen = require('./uuidv4');
+const ioHelper = require('./ioHelper');
 const AdmZip = require('adm-zip');
 
 class Exporter {
@@ -10,37 +10,6 @@ class Exporter {
     constructor(params) {
         this.params = params;
         this.tempDir = './temp';
-    }
-
-    readFileAsync(filePath) {
-        return new Promise((resolve, reject) => {
-            fs.readFile(filePath, (err, fileContent) => {
-                if (err) {
-                    reject(err);
-                } 
-                resolve(fileContent);
-            });
-        });
-    }
-
-    writeFileAsync(filePath, content) {
-        return new Promise((resolve, reject) => {
-            fs.writeFile(filePath, content, err => {
-                if (err) {
-                    reject(err);
-                }
-                resolve();
-            });
-        });
-    }
-
-    makeDirAsync(dirPath) {
-        return new Promise((resolve, reject) => {
-            fs.mkdir(dirPath, { recursive: true }, (err) => {
-                if (err) reject(err);
-                resolve(dirPath);
-            });
-        });
     }
 
     sendRequest(options, body) {
@@ -116,36 +85,9 @@ class Exporter {
         }); 
     }
 
-    getUrlContent(url, showLastChunk) {
-        return new Promise((resolve, reject) => {
-            let client = url.startsWith('https') ? https : http;
-            let req = client.get(url, res => {
-                let data = '';
-
-                // A chunk of data has been recieved.
-                res.on('data', (chunk) => {
-                    data += chunk;
-                });
-    
-                // The whole response has been received. Print out the result.
-                res.on('end', () => {
-                    resolve(data);
-                });
-    
-            })
-            req.on("error", (err) => {
-                reject(err);
-            });
-        });
-    };
-
-    getFilenameFromUrl(url) {
-        return url.split('/').pop().split('#')[0].split('?')[0];
-    }
-
     makeUuidTempDir() {
         return new Promise((resolve, reject) => {
-            this.makeDirAsync(this.tempDir + "/" + this.uuid)
+            ioHelper.makeDirAsync(this.tempDir + "/" + this.uuid)
                 .then(dirPath => {
                     this.uuidTempDir = dirPath;
                     resolve(dirPath);
@@ -207,12 +149,12 @@ class Exporter {
                             if (url.substr(0, 4) !== 'http') {
                                 url = this.baseUrl + '/' + url;
                             }
-                            let filename = this.getFilenameFromUrl(url);
+                            let filename = ioHelper.getFilenameFromUrl(url);
                             if (! fileList[filename]) {
                                 console.log('retrieve url =', url);
                                 fileList[filename] = true;
                                 // console.log('filename =', filename);
-                                let p = this.getUrlContent(url);
+                                let p = ioHelper.getUrlContent(url);
                                 p.then(data => {
                                     zip.addFile(filename, Buffer.from(data, 'binary'));
                                 })
@@ -282,7 +224,7 @@ class Exporter {
                 while (baseUrl.substr(-1) === '/') baseUrl = baseUrl.slice(0, -1);
                 this.baseUrl = baseUrl;
                 console.log('this.baseUrl =', this.baseUrl);
-                this.getUrlContent(url)
+                ioHelper.getUrlContent(url)
                     .then(data => {
                         this.html = data;
                         resolve(this.html);
@@ -306,7 +248,7 @@ class Exporter {
             this.getHtmlFromParams()
                 // .then(() => this.makeUuidTempDir())
                 .then(() => this.saveTempContent())
-                // .then(zipFilePath => this.readFileAsync(zipFilePath))
+                // .then(zipFilePath => ioHelper.readFileAsync(zipFilePath))
                 .then(() => this.prepareRequestData())
                 .then(([options, body]) => this.sendRequest(options, body))
                 .then(response => {
@@ -314,7 +256,7 @@ class Exporter {
                     resolve(response);
                 })
                 .catch(err => {
-                    console.log('pdf call catch error :', err);
+                    console.log('pdf call error :', err);
                     reject(err);
                 })
             ;
@@ -322,23 +264,9 @@ class Exporter {
     } 
 
     save(exportFile) {
-        return new Promise((resolve, reject) => {
-            fs.writeFile(exportFile, this.response, 'binary', 
-                err => {
-                    if (err) {
-                        // console.log(err);
-                        reject(err);
-                    }
-                    console.log("export file was saved!");
-                    resolve();
-                }
-            );
-        })
+        return ioHelper.writeFileAsync(exportFile, this.response, 'binary');
     }
 } 
 
-
-module.exports = {
-    Exporter: Exporter
-}
+module.exports = Exporter;
 
