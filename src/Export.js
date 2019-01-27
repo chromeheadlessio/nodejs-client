@@ -175,17 +175,12 @@ class Exporter {
             resourcePatterns = resourcePatterns.concat(this.params.resourcePatterns);
         }
         let fileList = {};
+        let numGroup = 1, urlOrder = 1;
+        let regex = /\{group(\d+)\}/ig;
+        
         return new Promise((resolve, reject) => {
             let getContentPromises = [];
             let replaceUrls = (html, rp) => {
-                let numGroup = 1;
-                while (rp.replace.indexOf(`{group${numGroup}}`) > -1) {
-                    numGroup += 1;
-                }
-                let urlOrder = 1;
-                while (rp.urlGroup.indexOf(`{group${urlOrder}}`) === -1) {
-                    urlOrder += 1;
-                }
                 let flag = true;
                 while (flag) {
                     flag = false;
@@ -227,7 +222,7 @@ class Exporter {
                                 getContentPromises.push(p);
                             }
                             let replaceStr = rp.replace;
-                            for (let j=1; j<numGroup; j+=1) {
+                            for (let j=1; j<=numGroup; j+=1) {
                                 let groupStr = j === urlOrder ? filename : args[j];
                                 replaceStr = replaceStr.replace(`{group${j}}`, groupStr);
                             }
@@ -240,6 +235,17 @@ class Exporter {
             };
             for (let i=0; i<resourcePatterns.length; i+=1) {
                 let rp = resourcePatterns[i];
+                rp.replace.replace(regex, function(match, g1) {
+                    g1 *= 1;
+                    if (g1 > numGroup) numGroup = g1;
+                    return match;
+                });
+                rp.replace.replace(regex, function(match, g1) {
+                    urlOrder = 1 * g1;
+                    return match;
+                });
+                console.log("numGroup =", numGroup);
+                console.log("urlOrder =", urlOrder);
                 html = replaceUrls(html, rp);
             }
             Promise.all(getContentPromises)
