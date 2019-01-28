@@ -113,9 +113,8 @@ class Exporter {
                 urlGroup: "{group3}"
             }
         ];
-        if (this.params.resourcePatterns) {
-            resourcePatterns = resourcePatterns.concat(this.params.resourcePatterns);
-        }
+        let paramRPs = this.params.resourcePatterns || [];
+        resourcePatterns = resourcePatterns.concat(paramRPs);
         let fileList = {};
         let numGroup = 1, urlOrder = 1;
         let regex = /\{group(\d+)\}/ig;
@@ -132,15 +131,6 @@ class Exporter {
                             // console.log('regex match =', match);
                             let url = args[urlOrder];
                             let urlOffset = match.indexOf(url);
-                            let subMatch = match.substr(0, urlOffset);
-                            // console.log('subMatch =', subMatch);
-                            let repSubMatch = replaceUrls(subMatch, rp);
-                            // console.log('repSubMatch =', repSubMatch);
-                            if (repSubMatch !== subMatch) {
-                                // console.log('repSubMatch !== subMatch');
-                                flag = true;
-                                return repSubMatch + match.substr(urlOffset);
-                            }
                             // console.log('found url =', url);
                             url = url.replace(/\\/g, "");
                             if (url[0] === '/') {
@@ -163,6 +153,17 @@ class Exporter {
                                 });
                                 getContentPromises.push(p);
                             }
+
+                            let subMatch = match.substr(0, urlOffset);
+                            // console.log('subMatch =', subMatch);
+                            let repSubMatch = replaceUrls(subMatch, rp);
+                            // console.log('repSubMatch =', repSubMatch);
+                            if (repSubMatch !== subMatch) {
+                                // console.log('repSubMatch !== subMatch');
+                                flag = true;
+                                return repSubMatch + match.substr(urlOffset);
+                            }
+
                             let replaceStr = rp.replace;
                             for (let j=1; j<=numGroup; j+=1) {
                                 let groupStr = j === urlOrder ? filename : args[j];
