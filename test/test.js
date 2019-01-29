@@ -22,8 +22,9 @@ let url;
 let upfile = 'c:/xampp7.2.7/htdocs/applications.html'; 
 let exportFilePath = './exports/export.pdf';
 url = 'http://localhost/applications.html';
-// url = 'http://localhost/koolreport/examplesLab/reports/cube/sales_by_quarters/';
-// url = 'https://vnexpress.net/';
+url = 'http://localhost/koolreport/examplesLab/reports/cube/sales_by_quarters/';
+url = 'https://vnexpress.net/';
+url = "https://www.google.com"; 
 
 // let params = {
 //     authentication: {
@@ -65,6 +66,7 @@ let exportParams = {
     baseUrl: null,
     // html: fs.readFileSync(upfile, 'utf8'),
     url: url,
+    // urlEncoding: 'ascii', // 'utf8'
     resourcePatterns: [
         {
             regex: /((KoolReport.load.resources|KoolReport.widget.init)\([^\)]*)["']([^"',\[\]\:]+)["']/ig,
@@ -85,17 +87,18 @@ service
     //set export parameters like html, url, etc
     .export2(exportParams)
 
-    //send export paramters together with pdf, jpg or png options 
+    //send export request with pdf, jpg or png options 
     //to chromeheadless.io service
     .pdf(pdfOptions)
     // .jpg(jpgOptions)
     // .png(pngOptions)
 
     //a promise is returned which if resolved would pass
-    //pdf, jpg or pnd data back
+    //pdf, jpg or png data back
     .then(data => {
         console.log('pdf data returned')
-        //Service also provides a save helper function
+        //data is in base64 encoding
+        //Service also provides a save file helper function
         //to write exported data to file
         service.save(exportFilePath, data);
     })

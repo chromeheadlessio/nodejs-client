@@ -17,7 +17,7 @@ class Exporter {
             let response = "";
             let req = http.request(options, res => {
             // let req = https.request(options, res => {
-                res.setEncoding('binary');
+                res.setEncoding('base64');
                 // res.setEncoding('utf8');
                 console.log('STATUS: ' + res.statusCode);
                 console.log('HEADERS: ' + JSON.stringify(res.headers));
@@ -41,9 +41,9 @@ class Exporter {
         });
     }
 
-    prepareRequestData(fileContent) {
+    prepareRequestData() {
         return new Promise((resolve, reject) => {
-            fileContent = this.zip.toBuffer(); 
+            let fileContent = this.zip.toBuffer(); 
             let params = this.params;
             let upfile = params.file, pageOptions = params.pageOptions;
             let boundary = '------------------------fe017aa0c2cf6d12';
@@ -64,7 +64,7 @@ class Exporter {
             var body = Buffer.concat([
                 Buffer.from(data, "utf8"),
                 fileContent,
-                // Buffer.from(fileContent, 'binary'),
+                // Buffer.from(fileContent, 'base64'),
                 Buffer.from("\r\n--" + boundary + "--\r\n", "utf8"),
             ]);
     
@@ -113,7 +113,8 @@ class Exporter {
                 urlGroup: "{group3}"
             }
         ];
-        let paramRPs = this.params.resourcePatterns || [];
+        let params = this.params;
+        let paramRPs = params.resourcePatterns || [];
         resourcePatterns = resourcePatterns.concat(paramRPs);
         let fileList = {};
         let numGroup = 1, urlOrder = 1;
@@ -144,9 +145,9 @@ class Exporter {
                                 console.log('retrieve url =', url);
                                 fileList[filename] = true;
                                 // console.log('filename =', filename);
-                                let p = ioHelper.getUrlContent(url);
+                                let p = ioHelper.getUrlContent(url, 'base64');
                                 p.then(data => {
-                                    zip.addFile(filename, Buffer.from(data, 'binary'));
+                                    zip.addFile(filename, Buffer.from(data, 'base64'));
                                 })
                                 .catch(err => {
                                     console.log('error retrieving ', filename, err);
@@ -194,7 +195,8 @@ class Exporter {
             Promise.all(getContentPromises)
                 .then(res => {
                     console.log('getContentPromises resolved');
-                    zip.addFile("export.html", Buffer.alloc(html.length, html));
+                    // zip.addFile("export.html", Buffer.alloc(html.length, html));
+                    zip.addFile("export.html", Buffer.from(html, params.urlEncoding));
                     let zipFilePath = this.tempDir + "/" + this.uuid + ".zip";
                     zip.writeZip(zipFilePath);
                     resolve(zipFilePath);
@@ -216,6 +218,7 @@ class Exporter {
                 resolve(this.html);
             } else if (params.url) {
                 let url = params.url;
+                params.urlEncoding = params.urlEncoding || 'utf8';
                 if (! url.startsWith('http')) {
                     url = 'http://' + url;
                 }
@@ -225,9 +228,11 @@ class Exporter {
                 while (baseUrl.substr(-1) === '/') baseUrl = baseUrl.slice(0, -1);
                 this.baseUrl = baseUrl;
                 console.log('this.baseUrl =', this.baseUrl);
-                ioHelper.getUrlContent(url)
-                    .then(data => {
+                ioHelper.getUrlContent(url, params.urlEncoding)
+                .then(data => {
                         this.html = data;
+                        // this.html = Buffer.from(data, 'base64').toString('utf8');
+                        // console.log('retrieve url html =', this.html);
                         resolve(this.html);
                     })
                     .catch(err => {

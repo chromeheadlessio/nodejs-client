@@ -22,7 +22,7 @@ class Service {
     }
 
     save(filePath, data, option) {
-        option = option || 'binary';
+        option = option || 'base64';
         return ioHelper.writeFileAsync(filePath, data, option);
     }
 }

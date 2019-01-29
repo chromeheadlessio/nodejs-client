@@ -14,7 +14,7 @@ module.exports = {
         });
     },
 
-    writeFileAsync: (filePath, content, option = 'binary') => {
+    writeFileAsync: (filePath, content, option) => {
         return new Promise((resolve, reject) => {
             fs.writeFile(filePath, content, option, 
                 err => {
@@ -36,11 +36,15 @@ module.exports = {
         });
     },
 
-    getUrlContent: (url, encoding = 'binary') => {
+    getUrlContent: (url, encoding) => {
         return new Promise((resolve, reject) => {
+            // console.log('get url content in encoding before ', encoding);
+            // console.log('get url content in encoding after ', encoding);
             let client = url.startsWith('https') ? https : http;
             let req = client.get(url, res => {
-                res.setEncoding(encoding); 
+                if (encoding) {
+                    res.setEncoding(encoding); 
+                }
                 let data = "";
                 // let data = "data:" + res.headers["content-type"] + ";base64,";
 
