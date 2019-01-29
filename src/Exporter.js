@@ -7,16 +7,16 @@ const AdmZip = require('adm-zip');
 
 class Exporter {
 
-    constructor(params) {
-        this.params = params;
+    constructor(authentication) {
+        this.authentication = authentication;
         this.tempDir = './temp';
     }
 
     sendRequest(options, body) {
         return new Promise((resolve, reject) => {
             let response = "";
-            // let req = http.request(options, res => {
-            let req = https.request(options, res => {
+            let req = http.request(options, res => {
+            // let req = https.request(options, res => {
                 res.setEncoding('binary');
                 // res.setEncoding('utf8');
                 console.log('STATUS: ' + res.statusCode);
@@ -69,14 +69,14 @@ class Exporter {
             ]);
     
             let options = { 
-                // host: "localhost",
-                // port: "1982",
-                host: "service.chromeheadless.io",
+                host: "localhost",
+                port: "1982",
+                // host: "service.chromeheadless.io",
                 // port: "1982",
                 path: "/api/export",
                 method: "POST",
                 headers: { 
-                    Authorization: "Bearer " + params.authentication.secretToken,
+                    Authorization: "Bearer " + this.authentication.secretToken,
                     'content-length': Buffer.byteLength(body),
                     'content-type': 'multipart/form-data;boundary=' + boundary
                 },
@@ -108,7 +108,7 @@ class Exporter {
                 urlGroup: "{group3}"
             },
             {
-                regex: /<(script|img|iframe)([^>]+)src=["']([^>"']*)["']/ig,
+                regex: /<(script|img|iframe)([^>]*)src=["']([^>"']*)["']/ig,
                 replace: "<{group1}{group2}src='{group3}'",
                 urlGroup: "{group3}"
             }
@@ -263,11 +263,6 @@ class Exporter {
             ;
         });
     } 
-
-    save(exportFile) {
-        return ioHelper.writeFileAsync(exportFile, this.response, 'binary');
-    }
 } 
 
 module.exports = Exporter;
-
